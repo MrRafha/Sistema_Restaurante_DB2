@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="dev.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="4699"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="Category" custom_title="0" dock_id="1" table="4,8:mainCategory"/><dock_state state="000000ff00000000fd00000001000000020000000000000000fc0100000001fb000000160064006f0063006b00420072006f00770073006500310100000000ffffffff0000012400ffffff000000000000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="Clientes">SELECT
+  o.id AS pedido_id,
+  c.id AS cliente_id,
+  c.name AS cliente_nome,
+  c.phone AS cliente_telefone,
+  o.createdAt AS data_pedido
+FROM &quot;Order&quot; o
+INNER JOIN &quot;Customer&quot; c ON c.id = o.customerId
+ORDER BY o.createdAt DESC;</sql><sql name="Garçom*">SELECT
+  o.id AS pedido_id,
+  e.id AS garcom_id,
+  e.name AS garcom_nome,
+  e.role AS funcao,
+  o.createdAt AS data_pedido
+FROM &quot;Order&quot; o
+LEFT JOIN &quot;Employee&quot; e ON e.id = o.employeeId
+ORDER BY o.createdAt DESC;</sql><sql name="Pratos*">SELECT
+  o.id AS pedido_id,
+  d.id AS prato_id,
+  d.name AS prato_nome,
+  oi.quantity AS quantidade
+FROM &quot;OrderItem&quot; oi
+INNER JOIN &quot;Order&quot; o ON o.id = oi.orderId
+INNER JOIN &quot;Dish&quot; d ON d.id = oi.dishId
+ORDER BY o.id, d.name;</sql><sql name="valor pratos*">SELECT
+  o.id AS pedido_id,
+  d.name AS prato_nome,
+  oi.quantity AS quantidade,
+  oi.unitPrice AS preco_unitario,
+  oi.subtotal AS subtotal_item,
+  oi.isFree AS item_gratis
+FROM &quot;OrderItem&quot; oi
+INNER JOIN &quot;Order&quot; o ON o.id = oi.orderId
+INNER JOIN &quot;Dish&quot; d ON d.id = oi.dishId
+ORDER BY o.id, d.name;</sql><current_tab id="3"/></tab_sql></sqlb_project>
