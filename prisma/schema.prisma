@@ -124,3 +124,15 @@ model OrderItem {
   subtotal  Float
   isFree    Boolean @default(false)
 }
+
+// =============================================================================
+// despesas — Gastos do restaurante (ex: água, luz, compras, manutenção, etc.) 26/03
+// =============================================================================
+model Expense {
+  id          Int      @id @default(autoincrement())
+  description String
+  value       Float
+  category    String
+  paidAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+}

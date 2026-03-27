@@ -12,16 +12,43 @@ export default function AdminPage() {
           <p className="text-sm text-gray-500">Gerencie o restaurante</p>
         </div>
         <form action="/api/auth/logout" method="POST">
-          <Button variant="ghost" size="sm" formAction="/api/auth/logout" asChild>
-            <Link href="/api/auth/logout">
-              <LogOut className="h-4 w-4" />
-              Sair
-            </Link>
+          <Button variant="ghost" size="sm" type="submit">
+            <LogOut className="h-4 w-4" />
+            Sair
           </Button>
         </form>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <Users className="h-8 w-8 text-orange-500 mb-2" />
+                    <CardTitle>Funcionários</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-gray-500">
+                      Cadastre, edite e remova funcionários do restaurante.
+                    </p>
+                    <Button asChild className="w-full">
+                      <Link href="/admin/employees">Gerenciar Funcionários</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <ShoppingBag className="h-8 w-8 text-orange-500 mb-2" />
+                    <CardTitle>Faturamento</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-gray-500">
+                      Visualize receitas, despesas e salários do restaurante.
+                    </p>
+                    <Button asChild className="w-full">
+                      <Link href="/admin/billing">Ver Faturamento</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader>
             <ChefHat className="h-8 w-8 text-orange-500 mb-2" />
