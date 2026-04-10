@@ -78,3 +78,53 @@ export async function deleteCustomer(id: number) {
     where: { id },
   });
 }
+
+/**
+ * Busca um cliente pelo telefone normalizado.
+ * Retorna null se não encontrado.
+ */
+export async function findCustomerByPhone(phone: string) {
+  const phoneResult = validateBrazilianPhone(phone);
+  if (!phoneResult.valid) {
+    throw new Error(phoneResult.error ?? "Telefone inválido.");
+  }
+  return prisma.customer.findUnique({
+    where: { phone: phoneResult.normalized },
+  });
+}
+
+/**
+ * Busca cliente pelo telefone; cadastra automaticamente se não existir.
+ * Incrementa orderCount ao final.
+ * Retorna o cliente (existente ou recém-criado) e se foi criado agora.
+ */
+export async function findOrCreateCustomer(
+  phone: string,
+  name: string
+): Promise<{ customer: Awaited<ReturnType<typeof prisma.customer.findUniqueOrThrow>>; created: boolean }> {
+  const phoneResult = validateBrazilianPhone(phone);
+  if (!phoneResult.valid) {
+    throw new Error(phoneResult.error ?? "Telefone inválido.");
+  }
+
+  const existing = await prisma.customer.findUnique({
+    where: { phone: phoneResult.normalized },
+  });
+
+  if (existing) {
+    const updated = await prisma.customer.update({
+      where: { id: existing.id },
+      data: { orderCount: { increment: 1 } },
+    });
+    return { customer: updated, created: false };
+  }
+
+  const created = await prisma.customer.create({
+    data: {
+      name: name.trim(),
+      phone: phoneResult.normalized,
+      orderCount: 1,
+    },
+  });
+  return { customer: created, created: true };
+}

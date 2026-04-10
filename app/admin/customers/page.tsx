@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -22,7 +23,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Download, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_VARIANT,
+  CHANNEL_LABELS,
+  formatCurrency,
+  formatDate,
+} from "@/lib/constants";
 
 interface Customer {
   id: number;
@@ -32,6 +47,27 @@ interface Customer {
   email: string | null;
   orderCount: number;
   createdAt: string;
+}
+
+type Period = "all" | "3m" | "1m" | "15d";
+
+const PERIOD_LABELS: Record<Period, string> = {
+  all: "Sempre",
+  "3m": "Últimos 3 meses",
+  "1m": "Último mês",
+  "15d": "Últimos 15 dias",
+};
+
+interface OrderDish { name: string; }
+interface OrderItem { id: number; quantity: number; unitPrice: number; subtotal: number; dish: OrderDish; }
+interface CustomerOrder {
+  id: number;
+  status: string;
+  channel: string;
+  totalAmount: number;
+  createdAt: string;
+  table: { label: string } | null;
+  items: OrderItem[];
 }
 
 interface CustomerForm {
@@ -66,6 +102,64 @@ export default function AdminCustomersPage() {
   const [editPhoneError, setEditPhoneError] = useState<string | null>(null);
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  // Dialog de pedidos do cliente
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [ordersCustomer, setOrdersCustomer] = useState<Customer | null>(null);
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersPeriod, setOrdersPeriod] = useState<Period>("all");
+
+  const fetchCustomerOrders = useCallback(async (customerId: number, period: Period) => {
+    setOrdersLoading(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/orders?period=${period}`);
+      const data = await res.json();
+      setCustomerOrders(data.orders ?? []);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, []);
+
+  const openOrdersDialog = (customer: Customer) => {
+    setOrdersCustomer(customer);
+    setOrdersPeriod("all");
+    setCustomerOrders([]);
+    setOrdersOpen(true);
+    fetchCustomerOrders(customer.id, "all");
+  };
+
+  const handlePeriodChange = (period: Period) => {
+    setOrdersPeriod(period);
+    if (ordersCustomer) fetchCustomerOrders(ordersCustomer.id, period);
+  };
+
+  const exportCSV = () => {
+    if (!ordersCustomer || customerOrders.length === 0) return;
+
+    const header = ["#Pedido", "Data", "Canal", "Mesa", "Status", "Itens", "Total"];
+    const rows = customerOrders.map((o) => [
+      o.id,
+      formatDate(o.createdAt),
+      CHANNEL_LABELS[o.channel as keyof typeof CHANNEL_LABELS] ?? o.channel,
+      o.table?.label ?? "—",
+      ORDER_STATUS_LABELS[o.status as keyof typeof ORDER_STATUS_LABELS] ?? o.status,
+      o.items.map((i) => `${i.quantity}x ${i.dish.name}`).join(" | "),
+      formatCurrency(o.totalAmount),
+    ]);
+
+    const csvContent = [header, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pedidos_${ordersCustomer.name.replace(/\s+/g, "_")}_${ordersPeriod}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const applyPhoneMask = (value: string): string => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -309,6 +403,9 @@ export default function AdminCustomersPage() {
                     <TableCell>{customer.orderCount}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" title="Ver pedidos" onClick={() => openOrdersDialog(customer)}>
+                          <FileText className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => openEditDialog(customer)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -400,6 +497,99 @@ export default function AdminCustomersPage() {
           /api/customers
         </Link>
       </p>
+
+      {/* Dialog — Pedidos do cliente */}
+      <Dialog open={ordersOpen} onOpenChange={setOrdersOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Pedidos de {ordersCustomer?.name}
+              <span className="ml-2 text-sm font-normal text-gray-400">
+                {formatPhone(ordersCustomer?.phone ?? "")}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center justify-between gap-3 py-2">
+            <Select value={ordersPeriod} onValueChange={(v) => handlePeriodChange(v as Period)}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              disabled={customerOrders.length === 0}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Exportar CSV
+            </Button>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {ordersLoading ? (
+              <div className="py-12 text-center text-gray-400">Carregando pedidos...</div>
+            ) : customerOrders.length === 0 ? (
+              <div className="py-12 text-center text-gray-400">
+                Nenhum pedido encontrado no período selecionado.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Canal</TableHead>
+                    <TableHead>Mesa</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {customerOrders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="text-gray-400 font-medium">#{order.id}</TableCell>
+                      <TableCell className="text-sm">{formatDate(order.createdAt)}</TableCell>
+                      <TableCell className="text-sm">
+                        {CHANNEL_LABELS[order.channel as keyof typeof CHANNEL_LABELS] ?? order.channel}
+                      </TableCell>
+                      <TableCell className="text-sm">{order.table?.label ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-gray-600 max-w-[200px] truncate">
+                        {order.items.map((i) => `${i.quantity}x ${i.dish.name}`).join(", ")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={ORDER_STATUS_VARIANT[order.status as keyof typeof ORDER_STATUS_VARIANT] ?? "default"}>
+                          {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(order.totalAmount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
+          {customerOrders.length > 0 && (
+            <div className="border-t pt-3 flex items-center justify-between text-sm">
+              <span className="text-gray-500">{customerOrders.length} pedido(s)</span>
+              <span className="font-bold text-orange-600">
+                Total: {formatCurrency(customerOrders.reduce((s, o) => s + o.totalAmount, 0))}
+              </span>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

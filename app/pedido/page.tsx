@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Plus, Minus, Trash2, Send } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency, CHANNEL_LABELS } from "@/lib/constants";
+import { validateBrazilianPhone } from "@/lib/validatePhone";
 
 interface Dish {
   id: number;
@@ -52,6 +54,47 @@ export default function PedidoPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Identificação do cliente
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  // null = não buscou ainda, undefined = não encontrado, Customer = encontrado
+  const [foundCustomer, setFoundCustomer] = useState<{ name: string } | null | undefined>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  const applyPhoneMask = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const handlePhoneBlur = useCallback(async () => {
+    const validation = validateBrazilianPhone(customerPhone);
+    if (!validation.valid) {
+      setPhoneError(validation.error ?? "Telefone inválido.");
+      setFoundCustomer(null);
+      return;
+    }
+    setPhoneError(null);
+    setLookingUp(true);
+    try {
+      const res = await fetch(`/api/customers/lookup?phone=${encodeURIComponent(validation.normalized)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFoundCustomer(data); // cliente encontrado
+        setCustomerName(data.name); // preenche o nome automaticamente
+      } else {
+        setFoundCustomer(undefined); // não encontrado — novo cliente
+      }
+    } catch {
+      setFoundCustomer(undefined);
+    } finally {
+      setLookingUp(false);
+    }
+  }, [customerPhone]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -106,10 +149,29 @@ export default function PedidoPage() {
 
   async function handleSubmit() {
     setError("");
+
     if (cart.length === 0) {
       setError("Adicione pelo menos um item ao pedido.");
       return;
     }
+
+    // Valida cliente — obrigatório em todos os canais
+    if (!customerPhone.trim()) {
+      setError("Informe o telefone do cliente.");
+      return;
+    }
+    const phoneValidation = validateBrazilianPhone(customerPhone);
+    if (!phoneValidation.valid) {
+      setPhoneError(phoneValidation.error ?? "Telefone inválido.");
+      setError("Corrija o telefone do cliente.");
+      return;
+    }
+    if (!customerName.trim()) {
+      setError("Informe o nome do cliente.");
+      return;
+    }
+
+    // Valida mesa — obrigatória somente para DINE_IN
     if (channel === "DINE_IN" && !tableId) {
       setError("Selecione uma mesa para pedido no salão.");
       return;
@@ -124,6 +186,8 @@ export default function PedidoPage() {
           channel,
           tableId: channel === "DINE_IN" ? Number(tableId) : undefined,
           items: cart.map((i) => ({ dishId: i.dish.id, quantity: i.quantity })),
+          customerPhone: customerPhone,
+          customerName: customerName,
         }),
       });
 
@@ -224,8 +288,61 @@ export default function PedidoPage() {
           )}
         </div>
 
-        {/* Sidebar: Channel + Cart */}
+        {/* Sidebar: Customer + Channel + Cart */}
         <div className="space-y-4">
+          {/* Identificação do cliente */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Identificação do cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="customerPhone">Telefone *</Label>
+                <Input
+                  id="customerPhone"
+                  placeholder="(11) 98765-4321"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    const masked = applyPhoneMask(e.target.value);
+                    setCustomerPhone(masked);
+                    setPhoneError(null);
+                    setFoundCustomer(null);
+                    setCustomerName("");
+                  }}
+                  onBlur={handlePhoneBlur}
+                />
+                {lookingUp && (
+                  <p className="text-xs text-gray-400">Buscando cliente...</p>
+                )}
+                {phoneError && (
+                  <p className="text-xs text-red-500">{phoneError}</p>
+                )}
+                {foundCustomer && (
+                  <p className="text-xs text-green-600">
+                    Cliente encontrado: <strong>{foundCustomer.name}</strong>
+                  </p>
+                )}
+                {foundCustomer === undefined && !lookingUp && customerPhone && !phoneError && (
+                  <p className="text-xs text-blue-600">Novo cliente — será cadastrado ao enviar.</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="customerName">Nome *</Label>
+                <Input
+                  id="customerName"
+                  placeholder="Nome do cliente"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  readOnly={!!foundCustomer}
+                  className={foundCustomer ? "bg-gray-50 text-gray-500" : ""}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Channel */}
           <Card>
             <CardHeader className="pb-3">

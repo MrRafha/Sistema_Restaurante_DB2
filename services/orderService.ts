@@ -19,6 +19,7 @@ export interface OrderItemInput {
 export interface CreateOrderInput {
   channel: Channel;
   tableId?: number;
+  customerId?: number;
   items: OrderItemInput[];
 }
 
@@ -37,18 +38,22 @@ export interface CreateOrderInput {
 // -----------------------------------------------------------------------------
 export async function createOrder(data: CreateOrderInput) {
   return prisma.$transaction(async (tx) => {
+    // PASSO 0 — Valida cliente se informado
+    if (data.customerId !== undefined) {
+      const customer = await tx.customer.findUnique({ where: { id: data.customerId } });
+      if (!customer) {
+        throw new Error(`Cliente ID ${data.customerId} não encontrado.`);
+      }
+    }
+
     // PASSO 1 — SELECT em Table para validar que a mesa existe
-    // findUniqueOrThrow lança erro automaticamente se não encontrar,
-    // abortando a transaction antes de qualquer escrita.
     if (data.channel === "DINE_IN") {
       if (!data.tableId) {
         throw new Error("Pedido no salão exige uma mesa.");
       }
-      const table = await tx.table.findUniqueOrThrow({
-        where: { id: data.tableId },
-      });
-      if (table.status === "OCCUPIED") {
-        // Mesa ocupada: permite adicionar pedidos à sessão existente
+      const table = await tx.table.findUnique({ where: { id: data.tableId } });
+      if (!table) {
+        throw new Error(`Mesa ID ${data.tableId} não encontrada.`);
       }
     }
 
@@ -103,6 +108,7 @@ export async function createOrder(data: CreateOrderInput) {
       data: {
         channel: data.channel,
         tableId: data.tableId,
+        customerId: data.customerId,
         totalAmount,
         items: {
           // `create` dentro de uma relação = INSERT nos registros filhos
