@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { validateBrazilianPhone, formatPhone } from "@/lib/validatePhone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,13 +55,25 @@ export default function AdminCustomersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CustomerForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createPhoneError, setCreatePhoneError] = useState<string | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<CustomerForm>(EMPTY_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editPhoneError, setEditPhoneError] = useState<string | null>(null);
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const applyPhoneMask = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -78,6 +91,15 @@ export default function AdminCustomersPage() {
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
+
+    const phoneValidation = validateBrazilianPhone(createForm.phone);
+    if (!phoneValidation.valid) {
+      setCreatePhoneError(phoneValidation.error ?? "Telefone inválido.");
+      return;
+    }
+    setCreatePhoneError(null);
+
     setCreating(true);
     try {
       const res = await fetch("/api/customers", {
@@ -97,10 +119,11 @@ export default function AdminCustomersPage() {
       }
 
       setCreateForm(EMPTY_FORM);
+      setCreatePhoneError(null);
       setCreateOpen(false);
       await fetchCustomers();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Erro ao cadastrar cliente");
+      setCreateError(error instanceof Error ? error.message : "Erro ao cadastrar cliente");
     } finally {
       setCreating(false);
     }
@@ -110,16 +133,26 @@ export default function AdminCustomersPage() {
     setEditingId(customer.id);
     setEditForm({
       name: customer.name,
-      phone: customer.phone,
+      phone: formatPhone(customer.phone),
       cpf: customer.cpf ?? "",
       email: customer.email ?? "",
     });
+    setEditError(null);
+    setEditPhoneError(null);
     setEditOpen(true);
   };
 
   const handleEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingId) return;
+    setEditError(null);
+
+    const phoneValidation = validateBrazilianPhone(editForm.phone);
+    if (!phoneValidation.valid) {
+      setEditPhoneError(phoneValidation.error ?? "Telefone inválido.");
+      return;
+    }
+    setEditPhoneError(null);
 
     setSavingEdit(true);
     try {
@@ -143,7 +176,7 @@ export default function AdminCustomersPage() {
       setEditingId(null);
       await fetchCustomers();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Erro ao editar cliente");
+      setEditError(error instanceof Error ? error.message : "Erro ao editar cliente");
     } finally {
       setSavingEdit(false);
     }
@@ -178,7 +211,7 @@ export default function AdminCustomersPage() {
           <Button variant="outline" size="sm" onClick={fetchCustomers} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setCreateError(null); setCreatePhoneError(null); } }}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <Plus className="h-4 w-4" />
@@ -203,10 +236,18 @@ export default function AdminCustomersPage() {
                   <Label htmlFor="phone">Telefone *</Label>
                   <Input
                     id="phone"
+                    placeholder="(11) 98765-4321"
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                    onChange={(e) => {
+                      const masked = applyPhoneMask(e.target.value);
+                      setCreateForm({ ...createForm, phone: masked });
+                      setCreatePhoneError(null);
+                    }}
                     required
                   />
+                  {createPhoneError && (
+                    <p className="text-sm text-red-500">{createPhoneError}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cpf">CPF (opcional)</Label>
@@ -225,11 +266,14 @@ export default function AdminCustomersPage() {
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
                   />
                 </div>
+                {createError && (
+                  <p className="text-sm text-red-500">{createError}</p>
+                )}
                 <div className="flex gap-2">
                   <Button type="submit" disabled={creating} className="flex-1">
                     {creating ? "Salvando..." : "Cadastrar"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); setCreateError(null); setCreatePhoneError(null); }}>
                     Cancelar
                   </Button>
                 </div>
@@ -243,7 +287,7 @@ export default function AdminCustomersPage() {
         <CardContent className="p-0">
           {customers.length === 0 ? (
             <div className="py-12 text-center text-gray-400">
-              Nenhum cliente cadastrado. Clique em "Novo Cliente" para adicionar.
+              Nenhum cliente cadastrado. Clique em Novo Cliente para adicionar.
             </div>
           ) : (
             <Table>
@@ -305,10 +349,18 @@ export default function AdminCustomersPage() {
               <Label htmlFor="edit-phone">Telefone *</Label>
               <Input
                 id="edit-phone"
+                placeholder="(11) 98765-4321"
                 value={editForm.phone}
-                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                onChange={(e) => {
+                  const masked = applyPhoneMask(e.target.value);
+                  setEditForm({ ...editForm, phone: masked });
+                  setEditPhoneError(null);
+                }}
                 required
               />
+              {editPhoneError && (
+                <p className="text-sm text-red-500">{editPhoneError}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-cpf">CPF (opcional)</Label>
@@ -327,11 +379,14 @@ export default function AdminCustomersPage() {
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               />
             </div>
+            {editError && (
+              <p className="text-sm text-red-500">{editError}</p>
+            )}
             <div className="flex gap-2">
               <Button type="submit" disabled={savingEdit} className="flex-1">
                 {savingEdit ? "Salvando..." : "Salvar"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => { setEditOpen(false); setEditError(null); setEditPhoneError(null); }}>
                 Cancelar
               </Button>
             </div>
