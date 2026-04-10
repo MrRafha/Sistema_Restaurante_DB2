@@ -60,25 +60,43 @@ export default function BillingPage() {
       <h1 className="text-2xl font-bold mb-6">Faturamento e Despesas</h1>
       {/* Cards de resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded shadow p-4">
-          <div className="text-gray-500 text-sm">Faturamento Total</div>
-          <div className="text-2xl font-semibold">R$ {summary ? summary.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+        <div className="bg-white rounded shadow p-4 flex flex-col justify-between h-full">
+          <div>
+            <div className="text-gray-500 text-sm">Faturamento Total</div>
+            <div className="text-2xl font-semibold">R$ {summary ? summary.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+          </div>
+          <button
+            className="mt-4 bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit"
+            onClick={() => window.location.href = '/admin/report'}
+          >
+            Ver Relatório
+          </button>
         </div>
         <div className="bg-white rounded shadow p-4">
           <div className="text-gray-500 text-sm">Faturamento do Dia</div>
           <div className="text-2xl font-semibold">R$ {summary ? summary.dailyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
         </div>
-        <div className="bg-white rounded shadow p-4">
-          <div className="text-gray-500 text-sm">Total de Despesas</div>
-          <div className="text-2xl font-semibold">R$ {summary ? summary.totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+        <div className="bg-white rounded shadow p-4 flex flex-col justify-between h-full">
+          <div>
+            <div className="text-gray-500 text-sm">Total de Despesas</div>
+            <div className="text-2xl font-semibold">R$ {summary ? summary.totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+          </div>
         </div>
       </div>
 
       {/* Cards extras: salários, gastos por categoria */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="bg-white rounded shadow p-4">
-          <div className="text-gray-500 text-sm">Total de Salários</div>
-          <div className="text-2xl font-semibold">R$ {summary ? summary.totalSalaries.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+        <div className="bg-white rounded shadow p-4 flex flex-col justify-between h-full">
+          <div>
+            <div className="text-gray-500 text-sm">Total de Salários</div>
+            <div className="text-2xl font-semibold">R$ {summary ? summary.totalSalaries.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '--,--'}</div>
+          </div>
+          <button
+            className="mt-4 bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit"
+            onClick={() => window.location.href = '/admin/payroll'}
+          >
+            Ver Folha de Pagamento
+          </button>
         </div>
         <div className="bg-white rounded shadow p-4">
           <div className="text-gray-500 text-sm">Gastos por Categoria</div>
