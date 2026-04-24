@@ -24,9 +24,10 @@ export async function GET(req: NextRequest) {
   const start = new Date(now);
   start.setDate(now.getDate() - period + 1);
 
-  // Faturamento
+  // Faturamento — exclui pedidos cancelados do cálculo de receita
   const orders = await prisma.order.findMany({
     where: {
+      status: { notIn: ["CANCELADO"] },
       createdAt: {
         gte: start,
         lte: now,

@@ -31,7 +31,7 @@ interface Order {
   items: OrderItem[];
 }
 
-export default function ConfirmacaoPage() {
+export default function DeliveryConfirmacaoPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center py-24 text-gray-500">Carregando...</div>}>
       <ConfirmacaoContent />
@@ -65,17 +65,28 @@ function ConfirmacaoContent() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <p className="text-gray-500">Pedido não encontrado.</p>
-        <Button asChild><Link href="/pedido">Novo pedido</Link></Button>
+        <Button asChild><Link href="/delivery">Novo pedido</Link></Button>
       </div>
     );
   }
+
+  const hasAddress = order.deliveryStreet && order.deliveryNumber && order.deliveryNeighborhood;
+  const addressLine = hasAddress
+    ? [
+        `${order.deliveryStreet}, ${order.deliveryNumber}`,
+        order.deliveryComplement,
+        order.deliveryNeighborhood,
+      ]
+        .filter(Boolean)
+        .join(" — ")
+    : null;
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <div className="text-center space-y-2">
         <CheckCircle className="mx-auto h-14 w-14 text-green-500" />
         <h1 className="text-2xl font-bold text-gray-900">Pedido enviado!</h1>
-        <p className="text-gray-500">Seu pedido foi recebido com sucesso.</p>
+        <p className="text-gray-500">Seu pedido foi recebido e está sendo preparado.</p>
       </div>
 
       <Card>
@@ -90,29 +101,6 @@ function ConfirmacaoContent() {
               {CHANNEL_LABELS[order.channel as keyof typeof CHANNEL_LABELS]}
             </span>
           </div>
-          {order.table && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-sm">Mesa</span>
-              <span className="font-medium">{order.table.label}</span>
-            </div>
-          )}
-          {order.deliveryStreet && order.deliveryNumber && order.deliveryNeighborhood && (
-            <div className="flex items-start gap-2 bg-orange-50 rounded-lg p-3">
-              <MapPin className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-orange-700 mb-0.5">Endereço de entrega</p>
-                <p className="text-sm text-gray-700">
-                  {[
-                    `${order.deliveryStreet}, ${order.deliveryNumber}`,
-                    order.deliveryComplement,
-                    order.deliveryNeighborhood,
-                  ]
-                    .filter(Boolean)
-                    .join(" — ")}
-                </p>
-              </div>
-            </div>
-          )}
           <div className="flex items-center justify-between">
             <span className="text-gray-500 text-sm">Status</span>
             <Badge variant="default" className="flex items-center gap-1">
@@ -120,6 +108,16 @@ function ConfirmacaoContent() {
               {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]}
             </Badge>
           </div>
+
+          {addressLine && (
+            <div className="flex items-start gap-2 bg-orange-50 rounded-lg p-3">
+              <MapPin className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-orange-700 mb-0.5">Endereço de entrega</p>
+                <p className="text-sm text-gray-700">{addressLine}</p>
+              </div>
+            </div>
+          )}
 
           <div className="border-t pt-3 space-y-2">
             {order.items.map((item) => (
@@ -138,11 +136,9 @@ function ConfirmacaoContent() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-3">
-        <Button asChild className="flex-1">
-          <Link href="/pedido">Novo pedido</Link>
-        </Button>
-      </div>
+      <Button asChild className="w-full">
+        <Link href="/delivery">Fazer outro pedido</Link>
+      </Button>
     </div>
   );
 }

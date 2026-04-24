@@ -21,6 +21,11 @@ export interface CreateOrderInput {
   tableId?: number;
   customerId?: number;
   items: OrderItemInput[];
+  notes?: string;
+  deliveryStreet?: string;
+  deliveryNumber?: string;
+  deliveryComplement?: string;
+  deliveryNeighborhood?: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -110,6 +115,11 @@ export async function createOrder(data: CreateOrderInput) {
         tableId: data.tableId,
         customerId: data.customerId,
         totalAmount,
+        notes: data.notes,
+        deliveryStreet: data.deliveryStreet,
+        deliveryNumber: data.deliveryNumber,
+        deliveryComplement: data.deliveryComplement,
+        deliveryNeighborhood: data.deliveryNeighborhood,
         items: {
           // `create` dentro de uma relação = INSERT nos registros filhos
           create: data.items.map((item) => {

@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      body.channel === "ONLINE" &&
+      (!body.deliveryStreet || !body.deliveryNumber || !body.deliveryNeighborhood)
+    ) {
+      return NextResponse.json(
+        { error: "Rua, número e bairro são obrigatórios para pedidos de entrega." },
+        { status: 400 }
+      );
+    }
+
     const { customer } = await findOrCreateCustomer(
       String(body.customerPhone),
       String(body.customerName)
@@ -43,6 +53,11 @@ export async function POST(request: NextRequest) {
       tableId: body.tableId,
       customerId,
       items: body.items,
+      notes: body.notes,
+      deliveryStreet: body.deliveryStreet,
+      deliveryNumber: body.deliveryNumber,
+      deliveryComplement: body.deliveryComplement,
+      deliveryNeighborhood: body.deliveryNeighborhood,
     });
 
     return NextResponse.json(order, { status: 201 });

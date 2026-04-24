@@ -26,6 +26,12 @@ enum TableStatus {
   OCCUPIED
 }
 
+enum EmployeeRole {
+  ADMIN
+  GARCOM
+  COZINHEIRO
+}
+
 // =============================================================================
 // categorias — Categorias dos pratos (ex: Entrada, Prato Principal, Bebida...)
 // =============================================================================
@@ -39,12 +45,14 @@ model Category {
 // funcionarios — Funcionários do restaurante que atendem os pedidos
 // =============================================================================
 model Employee {
-  id      Int      @id @default(autoincrement())
-  name    String
-  role    String
-  salary  Float
-  hiredAt DateTime @default(now())
-  orders  Order[]
+  id           Int          @id @default(autoincrement())
+  name         String
+  role         EmployeeRole @default(GARCOM)
+  username     String?      @unique
+  passwordHash String?
+  salary       Float
+  hiredAt      DateTime     @default(now())
+  orders       Order[]
 }
 
 model Dish {
@@ -97,20 +105,25 @@ model Coupon {
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  status      OrderStatus @default(RECEBIDO)
-  channel     Channel     @default(DINE_IN)
-  tableId     Int?
-  table       Table?      @relation(fields: [tableId], references: [id])
-  customerId  Int?
-  customer    Customer?   @relation(fields: [customerId], references: [id])
-  employeeId  Int?
-  employee    Employee?   @relation(fields: [employeeId], references: [id])
-  totalAmount Float       @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  items       OrderItem[]
-  couponUsed  Coupon?
+  id                   Int         @id @default(autoincrement())
+  status               OrderStatus @default(RECEBIDO)
+  channel              Channel     @default(DINE_IN)
+  tableId              Int?
+  table                Table?      @relation(fields: [tableId], references: [id])
+  customerId           Int?
+  customer             Customer?   @relation(fields: [customerId], references: [id])
+  employeeId           Int?
+  employee             Employee?   @relation(fields: [employeeId], references: [id])
+  totalAmount          Float       @default(0)
+  notes                String?
+  deliveryStreet       String?
+  deliveryNumber       String?
+  deliveryComplement   String?
+  deliveryNeighborhood String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  items                OrderItem[]
+  couponUsed           Coupon?
 }
 
 model OrderItem {

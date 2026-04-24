@@ -36,6 +36,18 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    const activeOrders = await prisma.order.count({
+      where: {
+        tableId: Number(id),
+        status: { notIn: ["ENTREGUE", "CANCELADO"] },
+      },
+    });
+    if (activeOrders > 0) {
+      return NextResponse.json(
+        { error: "Mesa possui pedidos ativos. Encerre os pedidos antes de excluir." },
+        { status: 409 }
+      );
+    }
     await prisma.table.delete({ where: { id: Number(id) } });
     return new NextResponse(null, { status: 204 });
   } catch {

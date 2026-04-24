@@ -1,20 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ShoppingCart, Plus, Minus, Trash2, Send, User } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Plus, Minus, Trash2, Send, User, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatCurrency } from "@/lib/constants";
 import { validateBrazilianPhone } from "@/lib/validatePhone";
 
@@ -27,34 +20,15 @@ interface Dish {
   qtyAvailable: number;
 }
 
-interface Table {
-  id: number;
-  label: string;
-  status: string;
-}
-
 interface CartItem {
   dish: Dish;
   quantity: number;
 }
 
-export default function PedidoPage() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center py-24 text-gray-500">Carregando...</div>}>
-      <PedidoContent />
-    </Suspense>
-  );
-}
-
-function PedidoContent() {
+export default function DeliveryPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const mesaParam = searchParams.get("mesa");
-
   const [dishes, setDishes] = useState<Dish[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [tableId, setTableId] = useState<string>(mesaParam ?? "");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +40,11 @@ function PedidoContent() {
   const [foundCustomer, setFoundCustomer] = useState<{ name: string } | null | undefined>(null);
   const [lookingUp, setLookingUp] = useState(false);
 
-  const mesaFixa = !!mesaParam;
+  // Endereço de entrega
+  const [street, setStreet] = useState("");
+  const [number, setNumber] = useState("");
+  const [complement, setComplement] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
 
   const applyPhoneMask = (value: string): string => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -101,37 +79,29 @@ function PedidoContent() {
     }
   }, [customerPhone]);
 
-  const fetchData = useCallback(async () => {
+  const fetchDishes = useCallback(async () => {
     setLoading(true);
     try {
-      const [dishRes, tableRes] = await Promise.all([
-        fetch("/api/dishes?active=true"),
-        fetch("/api/tables"),
-      ]);
-      const dishData = await dishRes.json();
-      const tableData = await tableRes.json();
-      setDishes(dishData.filter((d: Dish) => d.isAvailable && d.qtyAvailable > 0));
-      setTables(tableData);
+      const res = await fetch("/api/dishes?active=true");
+      const data = await res.json();
+      setDishes(data.filter((d: Dish) => d.isAvailable && d.qtyAvailable > 0));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Se veio ?mesa=X, garantir que o tableId está setado após carregar as mesas
-  useEffect(() => {
-    if (mesaParam) setTableId(mesaParam);
-  }, [mesaParam]);
+    fetchDishes();
+  }, [fetchDishes]);
 
   function addToCart(dish: Dish) {
     setCart((prev) => {
       const existing = prev.find((i) => i.dish.id === dish.id);
       if (existing) {
         if (existing.quantity >= dish.qtyAvailable) return prev;
-        return prev.map((i) => i.dish.id === dish.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map((i) =>
+          i.dish.id === dish.id ? { ...i, quantity: i.quantity + 1 } : i
+        );
       }
       return [...prev, { dish, quantity: 1 }];
     });
@@ -142,7 +112,9 @@ function PedidoContent() {
       const existing = prev.find((i) => i.dish.id === dishId);
       if (!existing) return prev;
       if (existing.quantity === 1) return prev.filter((i) => i.dish.id !== dishId);
-      return prev.map((i) => i.dish.id === dishId ? { ...i, quantity: i.quantity - 1 } : i);
+      return prev.map((i) =>
+        i.dish.id === dishId ? { ...i, quantity: i.quantity - 1 } : i
+      );
     });
   }
 
@@ -153,9 +125,6 @@ function PedidoContent() {
   const total = cart.reduce((sum, i) => sum + i.dish.price * i.quantity, 0);
   const cartQty = (dishId: number) => cart.find((i) => i.dish.id === dishId)?.quantity ?? 0;
 
-  // Label da mesa selecionada
-  const selectedTable = tables.find((t) => String(t.id) === tableId);
-
   async function handleSubmit() {
     setError("");
 
@@ -164,7 +133,7 @@ function PedidoContent() {
       return;
     }
     if (!customerPhone.trim()) {
-      setError("Informe o telefone.");
+      setError("Informe o seu telefone.");
       return;
     }
     const phoneValidation = validateBrazilianPhone(customerPhone);
@@ -174,11 +143,11 @@ function PedidoContent() {
       return;
     }
     if (!customerName.trim()) {
-      setError("Informe o nome.");
+      setError("Informe o seu nome.");
       return;
     }
-    if (!tableId) {
-      setError("Selecione uma mesa.");
+    if (!street.trim() || !number.trim() || !neighborhood.trim()) {
+      setError("Preencha rua, número e bairro para entrega.");
       return;
     }
 
@@ -188,11 +157,14 @@ function PedidoContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channel: "DINE_IN",
-          tableId: Number(tableId),
+          channel: "ONLINE",
           items: cart.map((i) => ({ dishId: i.dish.id, quantity: i.quantity })),
           customerPhone,
           customerName,
+          deliveryStreet: street.trim(),
+          deliveryNumber: number.trim(),
+          deliveryComplement: complement.trim() || undefined,
+          deliveryNeighborhood: neighborhood.trim(),
         }),
       });
 
@@ -202,7 +174,7 @@ function PedidoContent() {
       }
 
       const order = await res.json();
-      router.push(`/pedido/confirmacao?id=${order.id}`);
+      router.push(`/delivery/confirmacao?id=${order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar pedido.");
     } finally {
@@ -221,12 +193,8 @@ function PedidoContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pedido — Salão</h1>
-        {selectedTable ? (
-          <p className="text-sm text-orange-600 font-medium">Mesa {selectedTable.label}</p>
-        ) : (
-          <p className="text-sm text-gray-500">Selecione uma mesa para continuar</p>
-        )}
+        <h1 className="text-2xl font-bold text-gray-900">Pedir por Delivery</h1>
+        <p className="text-sm text-gray-500">Escolha os itens e informe o endereço de entrega</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -258,18 +226,32 @@ function PedidoContent() {
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-orange-600">{formatCurrency(dish.price)}</span>
+                        <span className="font-bold text-orange-600">
+                          {formatCurrency(dish.price)}
+                        </span>
                         {qty === 0 ? (
                           <Button size="sm" onClick={() => addToCart(dish)}>
-                            <Plus className="h-4 w-4 mr-1" />Adicionar
+                            <Plus className="h-4 w-4 mr-1" />
+                            Adicionar
                           </Button>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => removeFromCart(dish.id)}>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              onClick={() => removeFromCart(dish.id)}
+                            >
                               <Minus className="h-3 w-3" />
                             </Button>
                             <span className="w-5 text-center font-semibold">{qty}</span>
-                            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => addToCart(dish)} disabled={qty >= dish.qtyAvailable}>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              onClick={() => addToCart(dish)}
+                              disabled={qty >= dish.qtyAvailable}
+                            >
                               <Plus className="h-3 w-3" />
                             </Button>
                           </div>
@@ -290,7 +272,7 @@ function PedidoContent() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Identificação
+                Seus dados
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -301,27 +283,30 @@ function PedidoContent() {
                   placeholder="(11) 98765-4321"
                   value={customerPhone}
                   onChange={(e) => {
-                    setCustomerPhone(applyPhoneMask(e.target.value));
+                    const masked = applyPhoneMask(e.target.value);
+                    setCustomerPhone(masked);
                     setPhoneError(null);
                     setFoundCustomer(null);
                     setCustomerName("");
                   }}
                   onBlur={handlePhoneBlur}
                 />
-                {lookingUp && <p className="text-xs text-gray-400">Buscando cliente...</p>}
+                {lookingUp && <p className="text-xs text-gray-400">Buscando cadastro...</p>}
                 {phoneError && <p className="text-xs text-red-500">{phoneError}</p>}
                 {foundCustomer && (
-                  <p className="text-xs text-green-600">Cliente encontrado: <strong>{foundCustomer.name}</strong></p>
+                  <p className="text-xs text-green-600">
+                    Bem-vindo de volta, <strong>{foundCustomer.name}</strong>!
+                  </p>
                 )}
                 {foundCustomer === undefined && !lookingUp && customerPhone && !phoneError && (
-                  <p className="text-xs text-blue-600">Novo cliente — será cadastrado ao enviar.</p>
+                  <p className="text-xs text-blue-600">Primeiro pedido — será cadastrado ao enviar.</p>
                 )}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="customerName">Nome *</Label>
                 <Input
                   id="customerName"
-                  placeholder="Nome do cliente"
+                  placeholder="Seu nome"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   readOnly={!!foundCustomer}
@@ -331,36 +316,53 @@ function PedidoContent() {
             </CardContent>
           </Card>
 
-          {/* Mesa */}
+          {/* Endereço */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Mesa</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                Endereço de entrega
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              {mesaFixa && selectedTable ? (
-                <div className="flex items-center justify-between rounded-lg bg-orange-50 px-3 py-2">
-                  <span className="text-sm font-medium text-orange-700">Mesa {selectedTable.label}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {selectedTable.status === "FREE" ? "Livre" : "Ocupada"}
-                  </Badge>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="street">Rua *</Label>
+                <Input
+                  id="street"
+                  placeholder="Av. Paulista"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="number">Número *</Label>
+                  <Input
+                    id="number"
+                    placeholder="1578"
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
+                  />
                 </div>
-              ) : (
-                <Select value={tableId} onValueChange={setTableId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a mesa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tables.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        Mesa {t.label}
-                        {t.status === "OCCUPIED" && (
-                          <span className="ml-2 text-xs text-orange-500">(ocupada)</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+                <div className="space-y-1">
+                  <Label htmlFor="complement">Complemento</Label>
+                  <Input
+                    id="complement"
+                    placeholder="Apto 12"
+                    value={complement}
+                    onChange={(e) => setComplement(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="neighborhood">Bairro *</Label>
+                <Input
+                  id="neighborhood"
+                  placeholder="Bela Vista"
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -374,7 +376,9 @@ function PedidoContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               {cart.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Nenhum item adicionado</p>
+                <p className="text-sm text-gray-400 text-center py-4">
+                  Nenhum item adicionado
+                </p>
               ) : (
                 <>
                   <ul className="space-y-2">
@@ -382,8 +386,13 @@ function PedidoContent() {
                       <li key={item.dish.id} className="flex items-center gap-2 text-sm">
                         <span className="flex-1 truncate">{item.dish.name}</span>
                         <span className="text-gray-500 shrink-0">x{item.quantity}</span>
-                        <span className="font-medium shrink-0">{formatCurrency(item.dish.price * item.quantity)}</span>
-                        <button onClick={() => clearCart(item.dish.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                        <span className="font-medium shrink-0">
+                          {formatCurrency(item.dish.price * item.quantity)}
+                        </span>
+                        <button
+                          onClick={() => clearCart(item.dish.id)}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </li>
@@ -396,11 +405,17 @@ function PedidoContent() {
                 </>
               )}
 
-              {error && <p className="text-sm text-red-600 bg-red-50 rounded p-2">{error}</p>}
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 rounded p-2">{error}</p>
+              )}
 
-              <Button className="w-full" onClick={handleSubmit} disabled={submitting || cart.length === 0}>
+              <Button
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={submitting || cart.length === 0}
+              >
                 <Send className="h-4 w-4 mr-2" />
-                {submitting ? "Enviando..." : "Enviar Pedido"}
+                {submitting ? "Enviando..." : "Fazer Pedido"}
               </Button>
             </CardContent>
           </Card>

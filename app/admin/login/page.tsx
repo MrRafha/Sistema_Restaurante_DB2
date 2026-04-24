@@ -11,6 +11,7 @@ import { Lock } from "lucide-react";
 export default function AdminLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +24,7 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
         const from = searchParams.get("from") ?? "/admin";
@@ -31,7 +32,7 @@ export default function AdminLoginPage() {
         router.refresh();
       } else {
         const data = await res.json();
-        setError(data.error ?? "Senha incorreta");
+        setError(data.error ?? "Usuário ou senha incorretos");
       }
     } catch {
       setError("Erro de conexão");
@@ -45,10 +46,22 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <Lock className="mx-auto mb-2 h-8 w-8 text-orange-500" />
-          <CardTitle>Área Administrativa</CardTitle>
+          <CardTitle>Acesso ao Sistema</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Usuário</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="ex: admin"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoComplete="username"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <Input
@@ -58,6 +71,7 @@ export default function AdminLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
             {error && (

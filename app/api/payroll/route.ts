@@ -28,9 +28,10 @@ export async function GET(req: NextRequest) {
   // Busca funcionários
   const employees = await prisma.employee.findMany();
 
-  // Busca pedidos para cálculo da gratificação (se necessário)
+  // Busca pedidos ENTREGUES para cálculo da gratificação (exclui cancelados)
   const orders = await prisma.order.findMany({
     where: {
+      status: { notIn: ["CANCELADO"] },
       createdAt: {
         gte: start,
         lte: now,

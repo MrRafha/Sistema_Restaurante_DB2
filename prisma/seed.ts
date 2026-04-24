@@ -1,40 +1,34 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { createHash } from "crypto";
 import path from "path";
 import { config } from "dotenv";
 
-// Carrega o .env da raiz do projeto
 config({ path: path.join(process.cwd(), ".env") });
 
 const dbUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-// libsql exige caminho absoluto com barras normais no Windows
+
 function resolveDbUrl(url: string): string {
   if (url.startsWith("file:") && !url.startsWith("file:///") && !url.startsWith("file://")) {
-    const relativePart = url.slice(5); // remove o prefixo "file:"
+    const relativePart = url.slice(5);
     const absPath = path.resolve(process.cwd(), relativePart).replace(/\\/g, "/");
     return `file:${absPath}`;
   }
   return url;
 }
-const resolvedUrl = resolveDbUrl(dbUrl);
 
+const resolvedUrl = resolveDbUrl(dbUrl);
 const adapter = new PrismaLibSql({ url: resolvedUrl });
 const prisma = new PrismaClient({ adapter } as never);
+
+function hashPassword(password: string): string {
+  const secret = process.env.AUTH_SECRET ?? "rest_secret_2024";
+  return createHash("sha256").update(password + secret).digest("hex");
+}
 
 async function main() {
   console.log("🌱 Iniciando seed...");
 
-  // ==========================================================================
-  // DELETE — Limpa todas as tabelas antes de popular
-  // Equivalente SQL: DELETE FROM OrderItem; DELETE FROM Order; ...
-  //
-  // deleteMany() sem argumento remove TODOS os registros da tabela.
-  // A ordem importa: devemos deletar os filhos antes dos pais para não
-  // violar as foreign keys (restrições de integridade referencial).
-  //   OrderItem depende de Order e Dish → deleta primeiro
-  //   Order depende de Table           → deleta depois
-  //   Dish e Table são independentes   → deletamos por último
-  // ==========================================================================
   await prisma.orderItem.deleteMany();
   await prisma.coupon.deleteMany();
   await prisma.order.deleteMany();
@@ -60,22 +54,55 @@ async function main() {
   const catMap = Object.fromEntries(categories.map((c) => [c.name, c.id]));
 
   // ==========================================================================
-  // INSERT — Funcionários do restaurante
+  // INSERT — Funcionários com roles e credenciais de acesso
   // ==========================================================================
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "admin123";
   const employees = await Promise.all([
-    prisma.employee.create({ data: { name: "Ana Souza", role: "Garçom", salary: 2200 } }),
-    prisma.employee.create({ data: { name: "Carlos Lima", role: "Garçom", salary: 2200 } }),
-    prisma.employee.create({ data: { name: "Fernanda Costa", role: "Gerente", salary: 4500 } }),
+    prisma.employee.create({
+      data: {
+        name: "Administrador",
+        role: "ADMIN",
+        username: "admin",
+        passwordHash: hashPassword(adminPassword),
+        salary: 0,
+      },
+    }),
+    prisma.employee.create({
+      data: {
+        name: "Ana Souza",
+        role: "GARCOM",
+        username: "ana.garcom",
+        passwordHash: hashPassword("garcom123"),
+        salary: 2200,
+      },
+    }),
+    prisma.employee.create({
+      data: {
+        name: "Carlos Lima",
+        role: "GARCOM",
+        username: "carlos.garcom",
+        passwordHash: hashPassword("garcom123"),
+        salary: 2200,
+      },
+    }),
+    prisma.employee.create({
+      data: {
+        name: "Fernanda Costa",
+        role: "COZINHEIRO",
+        username: "fernanda.cozinha",
+        passwordHash: hashPassword("cozinha123"),
+        salary: 2800,
+      },
+    }),
   ]);
   console.log(`✅ ${employees.length} funcionários criados`);
+  console.log("   → admin / " + adminPassword);
+  console.log("   → ana.garcom / garcom123");
+  console.log("   → carlos.garcom / garcom123");
+  console.log("   → fernanda.cozinha / cozinha123");
 
   // ==========================================================================
-  // INSERT — Insere os pratos iniciais no banco
-  // Equivalente SQL: INSERT INTO Dish (name, description, price, ...) VALUES (...);
-  //
-  // Promise.all() executa todos os `create` em paralelo, ou seja, envia
-  // vários INSERTs ao mesmo tempo em vez de esperar um terminar para começar
-  // o próximo — muito mais rápido para seeds grandes.
+  // INSERT — Pratos
   // ==========================================================================
   const dishes = await Promise.all([
     prisma.dish.create({
@@ -167,16 +194,10 @@ async function main() {
       },
     }),
   ]);
-
   console.log(`✅ ${dishes.length} pratos criados`);
 
   // ==========================================================================
-  // INSERT — Insere as mesas do restaurante
-  // Equivalente SQL: INSERT INTO Table (label, capacity) VALUES ('01', 2), ...;
-  //
-  // tableData é definido como array em memória e então mapeado para INSERTs.
-  // Cada elemento vira um prisma.table.create(), todos rodando em paralelo
-  // com Promise.all() assim como foi feito nos pratos acima.
+  // INSERT — Mesas
   // ==========================================================================
   const tableData = [
     { numero: 1, label: "01", capacity: 2 },
@@ -186,43 +207,30 @@ async function main() {
     { numero: 5, label: "05", capacity: 6 },
     { numero: 6, label: "06", capacity: 8 },
   ];
-
   const tables = await Promise.all(
     tableData.map((t) => prisma.table.create({ data: t }))
   );
   console.log(`✅ ${tables.length} mesas criadas`);
 
-  // ========================================================================
-  // INSERT — Clientes para associar aos pedidos
-  // ========================================================================
+  // ==========================================================================
+  // INSERT — Clientes
+  // ==========================================================================
   const customers = await Promise.all([
     prisma.customer.create({
-      data: {
-        name: "Joao Pereira",
-        phone: "11990001111",
-        email: "joao.pereira@email.com",
-      },
+      data: { name: "Joao Pereira", phone: "11990001111", email: "joao.pereira@email.com" },
     }),
     prisma.customer.create({
-      data: {
-        name: "Marina Alves",
-        phone: "11990002222",
-        email: "marina.alves@email.com",
-      },
+      data: { name: "Marina Alves", phone: "11990002222", email: "marina.alves@email.com" },
     }),
     prisma.customer.create({
-      data: {
-        name: "Rafael Gomes",
-        phone: "11990003333",
-        email: "rafael.gomes@email.com",
-      },
+      data: { name: "Rafael Gomes", phone: "11990003333", email: "rafael.gomes@email.com" },
     }),
   ]);
   console.log(`✅ ${customers.length} clientes criados`);
 
-  // ========================================================================
-  // INSERT — Pedidos com itens para validar consultas JOIN
-  // ========================================================================
+  // ==========================================================================
+  // INSERT — Pedidos de exemplo
+  // ==========================================================================
   const order1Total = Number((dishes[0].price * 1 + dishes[2].price * 1).toFixed(2));
   const order2Total = Number((dishes[3].price * 1 + dishes[7].price * 2).toFixed(2));
   const order3Total = Number((dishes[1].price * 1 + dishes[6].price * 1 + dishes[4].price * 1).toFixed(2));
@@ -234,22 +242,12 @@ async function main() {
         channel: "DINE_IN",
         tableId: tables[0].id,
         customerId: customers[0].id,
-        employeeId: employees[0].id,
+        employeeId: employees[1].id,
         totalAmount: order1Total,
         items: {
           create: [
-            {
-              dishId: dishes[0].id,
-              quantity: 1,
-              unitPrice: dishes[0].price,
-              subtotal: Number((dishes[0].price * 1).toFixed(2)),
-            },
-            {
-              dishId: dishes[2].id,
-              quantity: 1,
-              unitPrice: dishes[2].price,
-              subtotal: Number((dishes[2].price * 1).toFixed(2)),
-            },
+            { dishId: dishes[0].id, quantity: 1, unitPrice: dishes[0].price, subtotal: Number((dishes[0].price * 1).toFixed(2)) },
+            { dishId: dishes[2].id, quantity: 1, unitPrice: dishes[2].price, subtotal: Number((dishes[2].price * 1).toFixed(2)) },
           ],
         },
       },
@@ -259,22 +257,12 @@ async function main() {
         status: "EM_PREPARO",
         channel: "TAKEAWAY",
         customerId: customers[1].id,
-        employeeId: employees[1].id,
+        employeeId: employees[2].id,
         totalAmount: order2Total,
         items: {
           create: [
-            {
-              dishId: dishes[3].id,
-              quantity: 1,
-              unitPrice: dishes[3].price,
-              subtotal: Number((dishes[3].price * 1).toFixed(2)),
-            },
-            {
-              dishId: dishes[7].id,
-              quantity: 2,
-              unitPrice: dishes[7].price,
-              subtotal: Number((dishes[7].price * 2).toFixed(2)),
-            },
+            { dishId: dishes[3].id, quantity: 1, unitPrice: dishes[3].price, subtotal: Number((dishes[3].price * 1).toFixed(2)) },
+            { dishId: dishes[7].id, quantity: 2, unitPrice: dishes[7].price, subtotal: Number((dishes[7].price * 2).toFixed(2)) },
           ],
         },
       },
@@ -285,52 +273,27 @@ async function main() {
         channel: "ONLINE",
         tableId: tables[2].id,
         customerId: customers[2].id,
-        employeeId: employees[0].id,
+        employeeId: employees[1].id,
         totalAmount: order3Total,
         items: {
           create: [
-            {
-              dishId: dishes[1].id,
-              quantity: 1,
-              unitPrice: dishes[1].price,
-              subtotal: Number((dishes[1].price * 1).toFixed(2)),
-            },
-            {
-              dishId: dishes[6].id,
-              quantity: 1,
-              unitPrice: dishes[6].price,
-              subtotal: Number((dishes[6].price * 1).toFixed(2)),
-            },
-            {
-              dishId: dishes[4].id,
-              quantity: 1,
-              unitPrice: dishes[4].price,
-              subtotal: Number((dishes[4].price * 1).toFixed(2)),
-            },
+            { dishId: dishes[1].id, quantity: 1, unitPrice: dishes[1].price, subtotal: Number((dishes[1].price * 1).toFixed(2)) },
+            { dishId: dishes[6].id, quantity: 1, unitPrice: dishes[6].price, subtotal: Number((dishes[6].price * 1).toFixed(2)) },
+            { dishId: dishes[4].id, quantity: 1, unitPrice: dishes[4].price, subtotal: Number((dishes[4].price * 1).toFixed(2)) },
           ],
         },
       },
     }),
   ]);
 
-  await Promise.all([
-    prisma.customer.update({
-      where: { id: customers[0].id },
-      data: { orderCount: 1 },
-    }),
-    prisma.customer.update({
-      where: { id: customers[1].id },
-      data: { orderCount: 1 },
-    }),
-    prisma.customer.update({
-      where: { id: customers[2].id },
-      data: { orderCount: 1 },
-    }),
-  ]);
+  await Promise.all(
+    customers.map((c) =>
+      prisma.customer.update({ where: { id: c.id }, data: { orderCount: 1 } })
+    )
+  );
 
   console.log(`✅ ${orders.length} pedidos criados com itens`);
   console.log("\n🎉 Seed concluído com sucesso!");
-  console.log("\nPara acessar o admin, use a senha: admin123");
 }
 
 main()

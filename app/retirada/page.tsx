@@ -1,20 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ShoppingCart, Plus, Minus, Trash2, Send, User } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Plus, Minus, Trash2, Send, User, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatCurrency } from "@/lib/constants";
 import { validateBrazilianPhone } from "@/lib/validatePhone";
 
@@ -27,34 +20,15 @@ interface Dish {
   qtyAvailable: number;
 }
 
-interface Table {
-  id: number;
-  label: string;
-  status: string;
-}
-
 interface CartItem {
   dish: Dish;
   quantity: number;
 }
 
-export default function PedidoPage() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center py-24 text-gray-500">Carregando...</div>}>
-      <PedidoContent />
-    </Suspense>
-  );
-}
-
-function PedidoContent() {
+export default function RetiradaPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const mesaParam = searchParams.get("mesa");
-
   const [dishes, setDishes] = useState<Dish[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [tableId, setTableId] = useState<string>(mesaParam ?? "");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +40,8 @@ function PedidoContent() {
   const [foundCustomer, setFoundCustomer] = useState<{ name: string } | null | undefined>(null);
   const [lookingUp, setLookingUp] = useState(false);
 
-  const mesaFixa = !!mesaParam;
+  // Observações
+  const [notes, setNotes] = useState("");
 
   const applyPhoneMask = (value: string): string => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -101,30 +76,20 @@ function PedidoContent() {
     }
   }, [customerPhone]);
 
-  const fetchData = useCallback(async () => {
+  const fetchDishes = useCallback(async () => {
     setLoading(true);
     try {
-      const [dishRes, tableRes] = await Promise.all([
-        fetch("/api/dishes?active=true"),
-        fetch("/api/tables"),
-      ]);
-      const dishData = await dishRes.json();
-      const tableData = await tableRes.json();
-      setDishes(dishData.filter((d: Dish) => d.isAvailable && d.qtyAvailable > 0));
-      setTables(tableData);
+      const res = await fetch("/api/dishes?active=true");
+      const data = await res.json();
+      setDishes(data.filter((d: Dish) => d.isAvailable && d.qtyAvailable > 0));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Se veio ?mesa=X, garantir que o tableId está setado após carregar as mesas
-  useEffect(() => {
-    if (mesaParam) setTableId(mesaParam);
-  }, [mesaParam]);
+    fetchDishes();
+  }, [fetchDishes]);
 
   function addToCart(dish: Dish) {
     setCart((prev) => {
@@ -153,9 +118,6 @@ function PedidoContent() {
   const total = cart.reduce((sum, i) => sum + i.dish.price * i.quantity, 0);
   const cartQty = (dishId: number) => cart.find((i) => i.dish.id === dishId)?.quantity ?? 0;
 
-  // Label da mesa selecionada
-  const selectedTable = tables.find((t) => String(t.id) === tableId);
-
   async function handleSubmit() {
     setError("");
 
@@ -164,7 +126,7 @@ function PedidoContent() {
       return;
     }
     if (!customerPhone.trim()) {
-      setError("Informe o telefone.");
+      setError("Informe o seu telefone.");
       return;
     }
     const phoneValidation = validateBrazilianPhone(customerPhone);
@@ -174,11 +136,7 @@ function PedidoContent() {
       return;
     }
     if (!customerName.trim()) {
-      setError("Informe o nome.");
-      return;
-    }
-    if (!tableId) {
-      setError("Selecione uma mesa.");
+      setError("Informe o seu nome.");
       return;
     }
 
@@ -188,11 +146,11 @@ function PedidoContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channel: "DINE_IN",
-          tableId: Number(tableId),
+          channel: "TAKEAWAY",
           items: cart.map((i) => ({ dishId: i.dish.id, quantity: i.quantity })),
           customerPhone,
           customerName,
+          notes: notes.trim() || undefined,
         }),
       });
 
@@ -202,7 +160,7 @@ function PedidoContent() {
       }
 
       const order = await res.json();
-      router.push(`/pedido/confirmacao?id=${order.id}`);
+      router.push(`/retirada/confirmacao?id=${order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar pedido.");
     } finally {
@@ -221,12 +179,8 @@ function PedidoContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pedido — Salão</h1>
-        {selectedTable ? (
-          <p className="text-sm text-orange-600 font-medium">Mesa {selectedTable.label}</p>
-        ) : (
-          <p className="text-sm text-gray-500">Selecione uma mesa para continuar</p>
-        )}
+        <h1 className="text-2xl font-bold text-gray-900">Pedido para Retirada</h1>
+        <p className="text-sm text-gray-500">Retire no balcão após o preparo</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -290,7 +244,7 @@ function PedidoContent() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Identificação
+                Seus dados
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -308,20 +262,20 @@ function PedidoContent() {
                   }}
                   onBlur={handlePhoneBlur}
                 />
-                {lookingUp && <p className="text-xs text-gray-400">Buscando cliente...</p>}
+                {lookingUp && <p className="text-xs text-gray-400">Buscando cadastro...</p>}
                 {phoneError && <p className="text-xs text-red-500">{phoneError}</p>}
                 {foundCustomer && (
-                  <p className="text-xs text-green-600">Cliente encontrado: <strong>{foundCustomer.name}</strong></p>
+                  <p className="text-xs text-green-600">Bem-vindo, <strong>{foundCustomer.name}</strong>!</p>
                 )}
                 {foundCustomer === undefined && !lookingUp && customerPhone && !phoneError && (
-                  <p className="text-xs text-blue-600">Novo cliente — será cadastrado ao enviar.</p>
+                  <p className="text-xs text-blue-600">Primeiro pedido — será cadastrado ao enviar.</p>
                 )}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="customerName">Nome *</Label>
                 <Input
                   id="customerName"
-                  placeholder="Nome do cliente"
+                  placeholder="Seu nome"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   readOnly={!!foundCustomer}
@@ -331,35 +285,25 @@ function PedidoContent() {
             </CardContent>
           </Card>
 
-          {/* Mesa */}
+          {/* Observações */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Mesa</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Observações
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {mesaFixa && selectedTable ? (
-                <div className="flex items-center justify-between rounded-lg bg-orange-50 px-3 py-2">
-                  <span className="text-sm font-medium text-orange-700">Mesa {selectedTable.label}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {selectedTable.status === "FREE" ? "Livre" : "Ocupada"}
-                  </Badge>
-                </div>
-              ) : (
-                <Select value={tableId} onValueChange={setTableId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a mesa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tables.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        Mesa {t.label}
-                        {t.status === "OCCUPIED" && (
-                          <span className="ml-2 text-xs text-orange-500">(ocupada)</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                rows={3}
+                placeholder="Ex: sem cebola, embrulhar para presente..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={300}
+              />
+              {notes.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1 text-right">{notes.length}/300</p>
               )}
             </CardContent>
           </Card>
@@ -400,7 +344,7 @@ function PedidoContent() {
 
               <Button className="w-full" onClick={handleSubmit} disabled={submitting || cart.length === 0}>
                 <Send className="h-4 w-4 mr-2" />
-                {submitting ? "Enviando..." : "Enviar Pedido"}
+                {submitting ? "Enviando..." : "Fazer Pedido"}
               </Button>
             </CardContent>
           </Card>
