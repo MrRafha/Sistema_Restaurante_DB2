@@ -106,6 +106,7 @@ model Coupon {
 
 model Order {
   id                   Int         @id @default(autoincrement())
+  codigo               String?     @unique
   status               OrderStatus @default(RECEBIDO)
   channel              Channel     @default(DINE_IN)
   tableId              Int?

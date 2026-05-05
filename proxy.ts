@@ -48,7 +48,8 @@ export function proxy(request: NextRequest) {
   if (/^\/api\/orders\/\d+$/.test(pathname) && method === "GET") return NextResponse.next();
 
   // Verificar se é rota pública
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  if (pathname === "/") return NextResponse.next();
+  const isPublic = PUBLIC_PATHS.some((p) => p !== "/" && pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 
   // A partir daqui, sessão é obrigatória
@@ -89,5 +90,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.webp$|.*\\.ico$|.*\\.glb$|.*\\.gltf$|.*\\.avif$).*)"],
 };

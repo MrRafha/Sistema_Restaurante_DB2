@@ -4,7 +4,12 @@
       "Bash(grep -E \"^[^.]*$|/[^/]*\\\\.\\(tsx|ts\\)$\")",
       "Bash(npx prisma *)",
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(ls src/app/)",
+      "Bash(dir src\\\\app /b)",
+      "PowerShell(cd \"C:\\\\Users\\\\Rafhael\\\\Desktop\\\\Coisas Desnecessárias do Desktop\\\\restaurant\"; node -e \"const {PrismaClient} = require\\('./app/generated/prisma'\\); const p = new PrismaClient\\(\\); p.dish.findMany\\({include:{category:true}}\\).then\\(d=>console.log\\(JSON.stringify\\(d,null,2\\)\\)\\).finally\\(\\(\\)=>p['\\\\$disconnect']\\(\\)\\)\")",
+      "PowerShell(Head *)",
+      "PowerShell(Get-Content *)"
     ]
   }
 }

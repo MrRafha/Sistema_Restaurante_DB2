@@ -104,13 +104,14 @@ export async function createOrder(data: CreateOrderInput) {
       return sum + dish.price * item.quantity;
     }, 0);
 
+    // Gera código legível tipo SRU047
+    const codigoNum = String(Math.floor(Math.random() * 9000) + 1000);
+    const codigo = `SRU${codigoNum}`;
+
     // PASSO 5 — INSERT aninhado: cria Order e seus OrderItems em uma só chamada
-    // O Prisma traduz isso para:
-    //   INSERT INTO Order (...) VALUES (...);
-    //   INSERT INTO OrderItem (...) VALUES (...), (...), ...;
-    // O `include` no final faz JOINs para retornar o objeto completo.
     const order = await tx.order.create({
       data: {
+        codigo,
         channel: data.channel,
         tableId: data.tableId,
         customerId: data.customerId,
